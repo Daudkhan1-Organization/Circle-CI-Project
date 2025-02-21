@@ -5,7 +5,10 @@ jobs:
     docker:
       - image: maven:3.8.5-openjdk-11
     steps:
-      - checkout  # Check out the source code
+      - run:
+          name: Checkout via HTTPS
+          command: |
+            git clone https://$GITHUB_TOKEN@github.com/Daudkhan1-Organization/Circle-CI-Project.git .
       - run:
           name: Setup Workspace
           command: |
@@ -16,7 +19,6 @@ jobs:
           root: /home/circleci/project
           paths:
             - .
-
   build_test:
     docker:
       - image: python:3.9-slim  # Use Python for running the Flask app
@@ -46,9 +48,9 @@ jobs:
           name: Build and Push Docker Image
           command: |
             cd /home/circleci/project
-            docker build -t nodejswebapp1 -t anshumaan10/nodejswebapp1:latest .
+            docker build -t nodejswebapp1 -t daudidrees/nodejswebapp1:latest .
             echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-            docker push anshumaan10/nodejswebapp1:latest
+            docker push daudidrees/nodejswebapp1:latest
 
   kubernetes_deploy:
     docker:
@@ -57,13 +59,14 @@ jobs:
       - attach_workspace:
           at: /home/circleci/project
       - run:
-          name: Set KUBECONFIG
+          name: Configure KUBECONFIG
           command: echo "$KUBECONFIG" | base64 --decode > /root/.kube/config
       - run:
           name: Deploy to Kubernetes
           command: |
             echo "Deploying to Kubernetes..."
             kubectl apply -f /home/circleci/project/k8s/deployment.yaml
+
 
 workflows:
   version: 2
