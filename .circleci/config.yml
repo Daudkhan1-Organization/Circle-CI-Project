@@ -1,84 +1,31 @@
+# Use the latest 2.1 version of CircleCI pipeline process engine.
+# See: https://circleci.com/docs/configuration-reference
 version: 2.1
 
+# Define a job to be invoked later in a workflow.
+# See: https://circleci.com/docs/jobs-steps/#jobs-overview & https://circleci.com/docs/configuration-reference/#jobs
 jobs:
-  setup_workspace:
+  say-hello:
+    # Specify the execution environment. You can specify an image from Docker Hub or use one of our convenience images from CircleCI's Developer Hub.
+    # See: https://circleci.com/docs/executor-intro/ & https://circleci.com/docs/configuration-reference/#executor-job
     docker:
-      - image: maven:3.8.5-openjdk-11
-    steps:
-      - run:
-          name: Checkout via SSH
-          command: |
-            git clone git@github.com:Daudkhan1-Organization/Circle-CI-Project.git .
-      - run:
-          name: Setup Workspace
-          command: |
-            echo "Setting up workspace..."
-            mkdir -p /home/circleci/project
-            cp -R . /home/circleci/project
-      - persist_to_workspace:
-          root: /home/circleci/project
-          paths:
-            - .
-  build_test:
-    docker:
-      - image: python:3.9-slim  # Use Python for running the Flask app
-    steps:
-      - attach_workspace:
-          at: /home/circleci/project
-      - run:
-          name: Install Dependencies
-          command: |
-            cd /home/circleci/project
-            pip install -r requirements.txt
-      - run:
-          name: Run Tests
-          command: |
-            cd /home/circleci/project
-            python -m unittest discover -s tests  # Example test command
+      # Specify the version you desire here
+      # See: https://circleci.com/developer/images/image/cimg/base
+      - image: cimg/base:current
 
-  build_docker_image:
-    docker:
-      - image: docker:20.10.23  # Docker version for building the image
+    # Add steps to the job
+    # See: https://circleci.com/docs/jobs-steps/#steps-overview & https://circleci.com/docs/configuration-reference/#steps
     steps:
-      - attach_workspace:
-          at: /home/circleci/project
-      - setup_remote_docker:
-          docker_layer_caching: true
+      # Checkout the code as the first step.
+      - checkout
       - run:
-          name: Build and Push Docker Image
-          command: |
-            cd /home/circleci/project
-            docker build -t nodejswebapp1 -t daudidrees/nodejswebapp1:latest .
-            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-            docker push daudidrees/nodejswebapp1:latest
+          name: "Say hello"
+          command: "echo Hello, World!"
 
-  kubernetes_deploy:
-    docker:
-      - image: bitnami/kubectl:latest  # Use Kubernetes CLI
-    steps:
-      - attach_workspace:
-          at: /home/circleci/project
-      - run:
-          name: Configure KUBECONFIG
-          command: echo "$KUBECONFIG" | base64 --decode > /root/.kube/config
-      - run:
-          name: Deploy to Kubernetes
-          command: |
-            echo "Deploying to Kubernetes..."
-            kubectl apply -f /home/circleci/project/k8s/deployment.yaml
-
-
+# Orchestrate jobs using workflows
+# See: https://circleci.com/docs/workflows/ & https://circleci.com/docs/configuration-reference/#workflows
 workflows:
-  version: 2
-  ci_cd_pipeline:
+  say-hello-workflow: # This is the name of the workflow, feel free to change it to better match your workflow.
+    # Inside the workflow, you define the jobs you want to run.
     jobs:
-      - setup_workspace
-      - build_test:
-          requires:
-            - setup_workspace
-      - build_docker_image:
-          requires:
-            - build_test
-      - kubernetes_deploy:
-          requires:
-            - build_docker_image
+      - say-hello
