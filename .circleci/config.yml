@@ -3,7 +3,7 @@ version: 2.1
 jobs:
   setup_workspace:
     docker:
-      - image: maven:3.8.5-openjdk-11  # Use Maven with OpenJDK 11
+      - image: maven:3.8.5-openjdk-11
     steps:
       - checkout  # Check out the source code
       - run:
@@ -11,6 +11,7 @@ jobs:
           command: |
             echo "Setting up workspace..."
             mkdir -p /home/circleci/project
+            cp -R . /home/circleci/project
       - persist_to_workspace:
           root: /home/circleci/project
           paths:
@@ -18,82 +19,40 @@ jobs:
 
   build_test:
     docker:
-      - image: maven:3.8.5-openjdk-11  # Use Maven with OpenJDK 11
+      - image: python:3.9-slim  # Use Python for running the Flask app
     steps:
       - attach_workspace:
           at: /home/circleci/project
       - run:
-          name: Build and Test Maven Application
+          name: Install Dependencies
           command: |
-            mvn clean install  # Build and test the Maven application
-
-  lint_code:
-    docker:
-      - image: maven:3.8.5-openjdk-11  # Use Maven with OpenJDK 11
-    steps:
-      - attach_workspace:
-          at: /home/circleci/project
+            cd /home/circleci/project
+            pip install -r requirements.txt
       - run:
-          name: Run Code Linting
+          name: Run Tests
           command: |
-            echo "Running linting checks..."
-            mvn com.coveo:fmt-maven-plugin:format  # Example for code formatting; adjust as needed
-
-  snyk_scan:
-    docker:
-      - image: maven:3.8.5-openjdk-11  # Use Maven with OpenJDK 11
-    steps:
-      - attach_workspace:
-          at: /home/circleci/project
-      - run:
-          name: Authenticate with Snyk
-          command: |
-            echo $SNYK_TOKEN | snyk auth --token  # Authenticate with Snyk
-      - run:
-          name: Run Snyk to Check for Vulnerabilities
-          command: |
-            snyk test  # Check for vulnerabilities in Maven dependencies
-
-  scan_docker_image:
-    docker:
-      - image: aquasec/trivy:latest  # Use Trivy Docker image for scanning
-    steps:
-      - attach_workspace:
-          at: /home/circleci/project
-      - run:
-          name: Scan Docker Image for Vulnerabilities
-          command: |
-            trivy image --no-progress anshumaan10/nodejswebapp1:latest  # Scan Docker image and report vulnerabilities
+            cd /home/circleci/project
+            python -m unittest discover -s tests  # Example test command
 
   build_docker_image:
     docker:
-      - image: maven:3.8.5-openjdk-11  # Use Maven with OpenJDK 11
+      - image: docker:20.10.23  # Docker version for building the image
     steps:
       - attach_workspace:
           at: /home/circleci/project
       - setup_remote_docker:
-          docker_layer_caching: true  # Enable Docker layer caching
+          docker_layer_caching: true
       - run:
-          name: Build Docker Image
+          name: Build and Push Docker Image
           command: |
-            docker build -t nodejswebapp1 -t anshumaan10/nodejswebapp1:latest .  # Build Docker image
-            echo $DOCKER_PASSWORD | docker login -u anshumaan10 --password-stdin  # Log in to Docker Hub
-            docker push anshumaan10/nodejswebapp1:latest  # Push Docker image to Docker Hub
-
-  clamav_scan:
-    docker:
-      - image: mkodockx/docker-clamav:latest  # Use ClamAV Docker image for file scanning
-    steps:
-      - attach_workspace:
-          at: /home/circleci/project
-      - run:
-          name: Scan Files with ClamAV
-          command: |
-            clamdscan --fdpass .  # Scan the files in the current directory
+            cd /home/circleci/project
+            docker build -t nodejswebapp1 -t anshumaan10/nodejswebapp1:latest .
+            echo $DOCKER_PASSWORD | docker login -u anshumaan10 --password-stdin
+            docker push anshumaan10/nodejswebapp1:latest
 
   kubernetes_deploy:
     docker:
-      - image: maven:3.8.5-openjdk-11  # Use Maven with OpenJDK 11
+      - image: bitnami/kubectl:latest  # Use Kubernetes CLI
     steps:
       - attach_workspace:
           at: /home/circleci/project
@@ -101,45 +60,7 @@ jobs:
           name: Deploy to Kubernetes
           command: |
             echo "Deploying to Kubernetes..."
-            kubectl apply -f k8s/deployment.yaml  # Apply Kubernetes deployment configuration
-
-  dast:
-    docker:
-      - image: maven:3.8.5-openjdk-11  # Use Maven with OpenJDK 11
-    steps:
-      - attach_workspace:
-          at: /home/circleci/project
-      - run:
-          name: Perform DAST
-          command: |
-            echo "Performing DAST on application..."
-            # Assuming OWASP ZAP is used for DAST; adjust as needed
-            zap-cli quick-scan http://your-app-url  # Quick scan using OWASP ZAP
-
-  kube_scan:
-    docker:
-      - image: bitnami/kubectl:latest  # Use Kubernetes CLI Docker image
-    steps:
-      - attach_workspace:
-          at: /home/circleci/project
-      - run:
-          name: Kubernetes Security Scan
-          command: |
-            echo "Running kubeaudit and KubeHunter..."
-            kubeaudit scan  # Run kubeaudit to check for Kubernetes security issues
-            kubectl run kubehunter --image=aquasec/kubectl:latest -- /kube-hunter  # Run KubeHunter
-
-  slack_notification:
-    docker:
-      - image: maven:3.8.5-openjdk-11  # Use Maven with OpenJDK 11
-    steps:
-      - attach_workspace:
-          at: /home/circleci/project
-      - run:
-          name: Send Slack Notification
-          command: |
-            echo "Sending Slack notification..."
-            curl -X POST -H 'Content-type: application/json' --data '{"text":"Build completed successfully!"}' $SLACK_WEBHOOK_URL
+            kubectl apply -f /home/circleci/project/k8s/deployment.yaml
 
 workflows:
   version: 2
@@ -149,30 +70,9 @@ workflows:
       - build_test:
           requires:
             - setup_workspace
-      - lint_code:
-          requires:
-            - build_test
-      - snyk_scan:
-          requires:
-            - lint_code
       - build_docker_image:
           requires:
-            - snyk_scan
-      - scan_docker_image:
-          requires:
-            - build_docker_image
-      - clamav_scan:
-          requires:
-            - scan_docker_image
+            - build_test
       - kubernetes_deploy:
           requires:
-            - clamav_scan
-      - dast:
-          requires:
-            - kubernetes_deploy
-      - kube_scan:
-          requires:
-            - dast
-      - slack_notification:
-          requires:
-            - kube_scan
+            - build_docker_image
