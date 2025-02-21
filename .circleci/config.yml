@@ -47,7 +47,7 @@ jobs:
           command: |
             cd /home/circleci/project
             docker build -t nodejswebapp1 -t anshumaan10/nodejswebapp1:latest .
-            echo $DOCKER_PASSWORD | docker login -u anshumaan10 --password-stdin
+            echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
             docker push anshumaan10/nodejswebapp1:latest
 
   kubernetes_deploy:
@@ -56,6 +56,9 @@ jobs:
     steps:
       - attach_workspace:
           at: /home/circleci/project
+      - run:
+          name: Set KUBECONFIG
+          command: echo "$KUBECONFIG" | base64 --decode > /root/.kube/config
       - run:
           name: Deploy to Kubernetes
           command: |
