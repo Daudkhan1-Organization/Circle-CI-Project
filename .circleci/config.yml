@@ -21,20 +21,21 @@ jobs:
             - .
   build_test:
     docker:
-      - image: python:3.9-slim  # Use Python for running the Flask app
+      - image: python:3.9-slim
     steps:
       - attach_workspace:
-          at: /home/circleci/project
+          at: ~/project  # Change to default workspace
       - run:
           name: Install Dependencies
           command: |
-            cd /home/circleci/project
+            cd ~/project
             pip install -r requirements.txt
       - run:
           name: Run Tests
           command: |
-            cd /home/circleci/project
-            python -m unittest discover -s tests  # Example test command
+            cd ~/project
+            python -m unittest discover -s tests -p "test_*.py"
+
 
   build_docker_image:
     docker:
