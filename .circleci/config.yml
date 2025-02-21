@@ -5,18 +5,15 @@ jobs:
     docker:
       - image: maven:3.8.5-openjdk-11
     steps:
-      - run:
-          name: Checkout via SSH
-          command: |
-            git clone git@github.com:Daudkhan1-Organization/Circle-CI-Project.git .
+      - checkout
       - run:
           name: Setup Workspace
           command: |
             echo "Setting up workspace..."
-            mkdir -p /home/circleci/project
-            cp -R . /home/circleci/project
+            mkdir -p ~/project
+            cp -R . ~/project
       - persist_to_workspace:
-          root: /home/circleci/project
+          root: ~/project
           paths:
             - .
   build_test:
@@ -24,7 +21,7 @@ jobs:
       - image: python:3.9-slim
     steps:
       - attach_workspace:
-          at: ~/project  # Change to default workspace
+          at: ~/project
       - run:
           name: Install Dependencies
           command: |
@@ -36,38 +33,36 @@ jobs:
             cd ~/project
             python -m unittest discover -s tests -p "test_*.py"
 
-
   build_docker_image:
     docker:
-      - image: docker:20.10.23  # Docker version for building the image
+      - image: docker:20.10.23
     steps:
       - attach_workspace:
-          at: /home/circleci/project
+          at: ~/project
       - setup_remote_docker:
           docker_layer_caching: true
       - run:
           name: Build and Push Docker Image
           command: |
-            cd /home/circleci/project
+            cd ~/project
             docker build -t nodejswebapp1 -t daudidrees/nodejswebapp1:latest .
             echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
             docker push daudidrees/nodejswebapp1:latest
 
   kubernetes_deploy:
     docker:
-      - image: bitnami/kubectl:latest  # Use Kubernetes CLI
+      - image: bitnami/kubectl:latest
     steps:
       - attach_workspace:
-          at: /home/circleci/project
+          at: ~/project
       - run:
           name: Configure KUBECONFIG
-          command: echo "$KUBECONFIG" | base64 --decode > /root/.kube/config
+          command: echo "$KUBECONFIG_BASE64" | base64 --decode > /root/.kube/config
       - run:
           name: Deploy to Kubernetes
           command: |
             echo "Deploying to Kubernetes..."
-            kubectl apply -f /home/circleci/project/k8s/deployment.yaml
-
+            kubectl apply -f ~/project/k8s/deployment.yaml
 
 workflows:
   version: 2
